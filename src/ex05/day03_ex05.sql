@@ -1,12 +1,19 @@
-DROP INDEX IF EXISTS idx_person_order_order_date;
-CREATE UNIQUE INDEX idx_person_order_order_date 
-    ON person_order (person_id, menu_id) 
-    WHERE order_date = '2022-01-01';
+COMMENT ON COLUMN person_discounts.id 
+    IS 'primary key identifier';
 
-SET enable_seqscan = OFF;
+COMMENT ON COLUMN person_discounts.person_id 
+    IS 'person identifier';
 
-EXPLAIN ANALYSE
-SELECT menu_id
-FROM person_order
-WHERE order_date = '2022-01-01' 
-  AND person_id = 2;
+COMMENT ON COLUMN person_discounts.pizzeria_id 
+    IS 'pizzeria identifier';
+
+COMMENT ON COLUMN person_discounts.discount 
+    IS 'discount for pair person and pizzeria';
+
+COMMENT ON TABLE person_discounts 
+    IS 'Discounts for persons';
+
+
+SELECT COUNT(*) = 5 AS check
+FROM pg_description
+WHERE objoid = 'person_discounts'::regclass;
