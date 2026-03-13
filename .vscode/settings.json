@@ -1,0 +1,14 @@
+{
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "pizza45_dml_db",
+            "database": "pizza45_dml_db",
+            "username": "postgres"
+        }
+    ]
+}
