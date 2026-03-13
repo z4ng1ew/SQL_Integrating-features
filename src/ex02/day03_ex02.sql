@@ -14,4 +14,4 @@ FROM person_order
         AND disc.pizzeria_id = menu.pizzeria_id
     INNER JOIN pizzeria 
         ON menu.pizzeria_id = pizzeria.id
-ORDER BY 1, 2;
+ORDER BY 1, 2, 4 DESC;
