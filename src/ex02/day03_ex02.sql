@@ -2,7 +2,10 @@ SELECT
     pers.name, 
     menu.pizza_name, 
     menu.price, 
-    (menu.price - (menu.price * disc.discount / 100)) AS discount_price, 
+    TO_CHAR(
+        (menu.price - (menu.price * disc.discount / 100)), 
+        'FM999999999999990.99'
+    )::NUMERIC AS discount_price,
     pizzeria.name AS pizzeria_name
 FROM person_order 
     INNER JOIN menu 

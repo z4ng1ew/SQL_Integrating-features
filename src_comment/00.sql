@@ -1100,3 +1100,402 @@ PostgreSQL проверяет:
 
 
 
+## АЛЬТЕРНАТИВНЫЕ СПОСОБЫ СОЗДАНИЯ ТАБЛИЦЫ
+
+### Способ 1: Без явных имен CONSTRAINT (короткий)
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    id BIGINT PRIMARY KEY,
+    person_id BIGINT REFERENCES person(id),
+    pizzeria_id BIGINT REFERENCES pizzeria(id),
+    discount NUMERIC
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**REFERENCES person(id)** — создает внешний ключ БЕЗ явного имени
+PostgreSQL сам создаст имя типа: `person_discounts_person_id_fkey`
+
+**Плюсы:**
+- Короче, меньше кода
+- Быстрее писать
+
+**Минусы:**
+- Имена constraint автоматические, сложно искать
+- Не соответствует требованиям задания
+
+---
+
+### Способ 2: С добавлением CONSTRAINT через ALTER TABLE
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+-- Создаем таблицу БЕЗ ограничений
+CREATE TABLE person_discounts (
+    id BIGINT,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC
+);
+
+-- Добавляем PRIMARY KEY
+ALTER TABLE person_discounts 
+    ADD CONSTRAINT pk_person_discounts PRIMARY KEY (id);
+
+-- Добавляем FOREIGN KEY для person_id
+ALTER TABLE person_discounts 
+    ADD CONSTRAINT fk_person_discounts_person_id 
+    FOREIGN KEY (person_id) REFERENCES person(id);
+
+-- Добавляем FOREIGN KEY для pizzeria_id
+ALTER TABLE person_discounts 
+    ADD CONSTRAINT fk_person_discounts_pizzeria_id 
+    FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**ALTER TABLE** — изменяет существующую таблицу
+**ADD CONSTRAINT** — добавляет новое ограничение
+
+**Плюсы:**
+- Понятно, какое ограничение добавляется
+- Можно добавлять ограничения постепенно
+- Удобно для миграций
+
+**Минусы:**
+- Больше кода
+- Медленнее (несколько команд)
+
+---
+
+### Способ 3: С использованием SERIAL для автоинкремента id
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    id BIGSERIAL PRIMARY KEY,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**BIGSERIAL** — специальный тип, автоматически создает:
+1. Столбец типа BIGINT
+2. Последовательность (sequence) для автоинкремента
+3. DEFAULT NEXTVAL для столбца
+
+**SERIAL** = BIGINT + автоинкремент
+
+**Плюсы:**
+- id генерируется автоматически при INSERT
+- Не нужно вручную указывать id
+
+**Минусы:**
+- В задании требуется BIGINT, не BIGSERIAL
+
+---
+
+### Способ 4: С проверкой существования через IF NOT EXISTS
+
+```sql
+DROP TABLE IF EXISTS person_discounts CASCADE;
+
+CREATE TABLE IF NOT EXISTS person_discounts (
+    id BIGINT PRIMARY KEY,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**IF NOT EXISTS** — создает таблицу только если её нет
+**CASCADE** — при DROP удаляет зависимые объекты (views, foreign keys из других таблиц)
+
+**Плюсы:**
+- Безопасно (не выдаст ошибку, если таблица уже есть)
+- CASCADE удаляет зависимости
+
+**Минусы:**
+- Может скрыть проблемы (не узнаешь, что таблица уже была)
+
+---
+
+### Способ 5: С явным указанием схемы (schema)
+
+```sql
+DROP TABLE IF EXISTS public.person_discounts;
+
+CREATE TABLE public.person_discounts (
+    id BIGINT PRIMARY KEY,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES public.person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES public.pizzeria(id)
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE schemaname = 'public' 
+  AND tablename = 'person_discounts';
+```
+
+**public** — имя схемы по умолчанию в PostgreSQL
+**Схема** (schema) — пространство имен для таблиц (как папка для файлов)
+
+**Плюсы:**
+- Явно указано, где создается таблица
+- Полезно при работе с несколькими схемами
+
+**Минусы:**
+- Избыточно для простых проектов
+
+---
+
+### Способ 6: С действиями при удалении (ON DELETE)
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    id BIGINT PRIMARY KEY,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+        ON DELETE CASCADE
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**ON DELETE CASCADE** — автоматически удаляет скидки при удалении клиента или пиццерии
+
+**Варианты ON DELETE:**
+- **CASCADE** — удалить зависимые строки
+- **SET NULL** — установить NULL в зависимых строках
+- **SET DEFAULT** — установить DEFAULT значение
+- **RESTRICT** — запретить удаление (по умолчанию)
+- **NO ACTION** — то же что RESTRICT
+
+**Плюсы:**
+- Автоматическая очистка данных
+- Защита от "висящих" ссылок
+
+**Минусы:**
+- Можно случайно удалить важные данные
+
+---
+
+### Способ 7: С DEFAULT значениями и CHECK constraints
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    id BIGINT PRIMARY KEY,
+    person_id BIGINT NOT NULL,
+    pizzeria_id BIGINT NOT NULL,
+    discount NUMERIC DEFAULT 0 CHECK (discount BETWEEN 0 AND 100),
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**NOT NULL** — запрещает пустые значения
+**DEFAULT 0** — значение по умолчанию
+**CHECK (discount BETWEEN 0 AND 100)** — проверяет диапазон значений
+
+**Плюсы:**
+- Больше защиты от некорректных данных
+- Значения по умолчанию упрощают INSERT
+
+**Минусы:**
+- Больше ограничений = меньше гибкости
+
+---
+
+### Способ 8: С именованным PRIMARY KEY
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    id BIGINT,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT pk_person_discounts PRIMARY KEY (id),
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**CONSTRAINT pk_person_discounts PRIMARY KEY (id)** — явное имя для PRIMARY KEY
+
+**Плюсы:**
+- Все constraint с понятными именами
+- Единый стиль именования
+
+**Минусы:**
+- Чуть длиннее код
+
+---
+
+### Способ 9: С составным первичным ключом (вместо id)
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT pk_person_discounts PRIMARY KEY (person_id, pizzeria_id),
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**PRIMARY KEY (person_id, pizzeria_id)** — составной первичный ключ из двух столбцов
+
+**Составной ключ** — когда уникальность обеспечивается комбинацией нескольких столбцов
+
+**Плюсы:**
+- Не нужен искусственный id
+- Пара (person_id, pizzeria_id) и так уникальна
+
+**Минусы:**
+- В задании требуется столбец id
+- Сложнее ссылаться на эту таблицу из других таблиц
+
+---
+
+### Способ 10: С созданием индексов
+
+```sql
+DROP TABLE IF EXISTS person_discounts;
+
+CREATE TABLE person_discounts (
+    id BIGINT PRIMARY KEY,
+    person_id BIGINT,
+    pizzeria_id BIGINT,
+    discount NUMERIC,
+    CONSTRAINT fk_person_discounts_person_id 
+        FOREIGN KEY (person_id) REFERENCES person(id),
+    CONSTRAINT fk_person_discounts_pizzeria_id 
+        FOREIGN KEY (pizzeria_id) REFERENCES pizzeria(id)
+);
+
+-- Создаем индексы для ускорения поиска
+CREATE INDEX idx_person_discounts_person_id 
+    ON person_discounts(person_id);
+
+CREATE INDEX idx_person_discounts_pizzeria_id 
+    ON person_discounts(pizzeria_id);
+
+SELECT COUNT(*) = 1 AS check
+FROM pg_tables
+WHERE tablename = 'person_discounts';
+```
+
+**CREATE INDEX** — создает индекс для ускорения поиска
+**Индекс** — структура данных для быстрого поиска (как предметный указатель в книге)
+
+**Плюсы:**
+- Ускоряет JOIN и WHERE по этим столбцам
+- Рекомендуется для внешних ключей
+
+**Минусы:**
+- Занимает место на диске
+- Замедляет INSERT/UPDATE/DELETE
+
+---
+
+## СРАВНЕНИЕ СПОСОБОВ
+
+| Способ | Сложность | Безопасность | Производительность | Соответствие заданию |
+|--------|-----------|--------------|-------------------|---------------------|
+| **Оригинал** | Низкая | Средняя | Высокая | ✓ Полное |
+| **Без CONSTRAINT** | Очень низкая | Низкая | Высокая | ✗ Нет явных имен |
+| **ALTER TABLE** | Средняя | Средняя | Средняя | ✓ Полное |
+| **BIGSERIAL** | Низкая | Средняя | Высокая | ✗ Тип не BIGINT |
+| **IF NOT EXISTS** | Низкая | Высокая | Высокая | ✓ Полное |
+| **С схемой** | Низкая | Средняя | Высокая | ✓ Полное |
+| **ON DELETE CASCADE** | Низкая | Высокая | Высокая | ✓ Полное |
+| **С CHECK** | Средняя | Очень высокая | Средняя | ✓ Улучшенное |
+| **Именованный PK** | Низкая | Средняя | Высокая | ✓ Полное |
+| **Составной ключ** | Средняя | Средняя | Высокая | ✗ Нет id |
+| **С индексами** | Средняя | Средняя | Очень высокая | ✓ Улучшенное |
+
+---
+
+## РЕКОМЕНДАЦИЯ ДЛЯ ЗАЩИТЫ
+
+**Оригинальный способ — правильный выбор**, потому что:
+1. Соответствует требованиям задания
+2. Явные имена CONSTRAINT
+3. Простой и понятный
+
+**Если спросят "почему не ALTER TABLE?":**
+> "ALTER TABLE используется, когда таблица уже существует и нужно добавить ограничения позже. При создании новой таблицы удобнее объявить все ограничения сразу в CREATE TABLE — это быстрее и понятнее."
+
+**Если спросят "почему не BIGSERIAL?":**
+> "BIGSERIAL автоматически создает последовательность и генерирует id. Но в задании явно требуется BIGINT, а автоинкремент настраивается отдельно через SEQUENCE в следующем задании."
+
+**Если спросят "зачем DROP IF EXISTS?":**
+> "Это обеспечивает идемпотентность скрипта — его можно запускать многократно без ошибок. Если таблица уже есть, она сначала удалится, потом создастся заново."
