@@ -1889,3 +1889,1266 @@ INSERT INTO test (name) VALUES ('Маша');  -- id=7 (SEQUENCE)
 2. **SEQUENCE** — для **будущих** одиночных INSERT (6,7,8...)
 
 Понятно теперь?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## ЧТО ТАКОЕ DEFAULT?
+
+**DEFAULT** (значение по умолчанию) — это **автоматическое значение**, которое вставляется в столбец, если ты **НЕ указал** значение при INSERT.
+
+### Аналогия: Форма заявления
+
+Представь **бумажную анкету**:
+
+```
+┌─────────────────────────────────┐
+│  АНКЕТА ДЛЯ РЕГИСТРАЦИИ        │
+├─────────────────────────────────┤
+│ Имя: ___________________       │
+│                                 │
+│ Страна: [Россия]    ← уже заполнено!
+│                                 │
+│ Статус: [Активен]   ← уже заполнено!
+│                                 │
+│ Дата регистрации: [Сегодня] ← уже заполнено!
+└─────────────────────────────────┘
+```
+
+**Имя** — пустое (нужно заполнить вручную)
+**Страна** — уже написано "Россия" (можешь оставить или изменить)
+**Статус** — уже написано "Активен" (можешь оставить или изменить)
+**Дата** — уже написано "Сегодня" (автоматически)
+
+**DEFAULT — это заранее заполненные поля в форме!**
+
+---
+
+## КАК РАБОТАЕТ DEFAULT В SQL
+
+### БЕЗ DEFAULT
+
+```sql
+CREATE TABLE users (
+    id BIGINT PRIMARY KEY,
+    name TEXT,
+    country TEXT,
+    status TEXT
+);
+
+-- Вставка данных
+INSERT INTO users (id, name, country, status) 
+VALUES (1, 'Вася', 'Россия', 'Активен');
+```
+
+Нужно **ВСЕГДА указывать все значения** вручную.
+
+---
+
+### С DEFAULT
+
+```sql
+CREATE TABLE users (
+    id BIGINT PRIMARY KEY,
+    name TEXT,
+    country TEXT DEFAULT 'Россия',        -- ← DEFAULT
+    status TEXT DEFAULT 'Активен'         -- ← DEFAULT
+);
+
+-- Вставка 1: Указываем все
+INSERT INTO users (id, name, country, status) 
+VALUES (1, 'Вася', 'Германия', 'Заблокирован');
+-- country = 'Германия' (наше значение)
+-- status = 'Заблокирован' (наше значение)
+
+-- Вставка 2: НЕ указываем country и status
+INSERT INTO users (id, name) 
+VALUES (2, 'Петя');
+-- country = 'Россия' (автоматически из DEFAULT!)
+-- status = 'Активен' (автоматически из DEFAULT!)
+
+-- Вставка 3: Указываем только country
+INSERT INTO users (id, name, country) 
+VALUES (3, 'Коля', 'Казахстан');
+-- country = 'Казахстан' (наше значение)
+-- status = 'Активен' (автоматически из DEFAULT!)
+```
+
+**Результат:**
+
+```
+id | name  | country    | status
+---|-------|------------|-------------
+1  | Вася  | Германия   | Заблокирован
+2  | Петя  | Россия     | Активен      ← DEFAULT сработал!
+3  | Коля  | Казахстан  | Активен      ← DEFAULT сработал!
+```
+
+---
+
+## СИНТАКСИС: УСТАНОВКА DEFAULT
+
+### При создании таблицы
+
+```sql
+CREATE TABLE table_name (
+    column_name TYPE DEFAULT значение
+);
+```
+
+**Примеры:**
+
+```sql
+CREATE TABLE products (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT,
+    price NUMERIC DEFAULT 0,              -- число
+    in_stock BOOLEAN DEFAULT true,        -- логическое
+    created_at TIMESTAMP DEFAULT NOW(),   -- функция
+    status TEXT DEFAULT 'available'       -- строка
+);
+```
+
+---
+
+### Для существующей таблицы
+
+```sql
+ALTER TABLE table_name 
+    ALTER COLUMN column_name SET DEFAULT значение;
+```
+
+**Пример:**
+
+```sql
+-- Было: discount без DEFAULT
+ALTER TABLE person_discounts 
+    ALTER COLUMN discount SET DEFAULT 0;
+-- Теперь: discount по умолчанию = 0
+```
+
+---
+
+## ТИПЫ DEFAULT ЗНАЧЕНИЙ
+
+### 1. Константы (фиксированные значения)
+
+```sql
+CREATE TABLE example (
+    -- Числа
+    age INTEGER DEFAULT 18,
+    price NUMERIC DEFAULT 99.99,
+    
+    -- Строки
+    country TEXT DEFAULT 'Россия',
+    status TEXT DEFAULT 'new',
+    
+    -- Логические
+    is_active BOOLEAN DEFAULT true,
+    is_deleted BOOLEAN DEFAULT false,
+    
+    -- NULL
+    notes TEXT DEFAULT NULL
+);
+```
+
+---
+
+### 2. Функции (вычисляемые значения)
+
+```sql
+CREATE TABLE example (
+    -- Текущая дата/время
+    created_at TIMESTAMP DEFAULT NOW(),
+    created_date DATE DEFAULT CURRENT_DATE,
+    
+    -- Случайное число
+    random_id UUID DEFAULT gen_random_uuid(),
+    
+    -- Текущий пользователь
+    created_by TEXT DEFAULT CURRENT_USER
+);
+```
+
+**NOW()** — текущая дата и время
+**CURRENT_DATE** — текущая дата
+**gen_random_uuid()** — случайный UUID
+**CURRENT_USER** — имя текущего пользователя PostgreSQL
+
+---
+
+### 3. Выражения
+
+```sql
+CREATE TABLE example (
+    base_price NUMERIC,
+    tax_rate NUMERIC DEFAULT 0.20,
+    -- Нельзя так: total_price NUMERIC DEFAULT base_price * (1 + tax_rate)
+    -- DEFAULT не может ссылаться на другие столбцы той же строки!
+);
+```
+
+⚠️ **ОГРАНИЧЕНИЕ:** DEFAULT **НЕ МОЖЕТ** использовать значения **других столбцов** той же строки.
+
+**Можно:**
+```sql
+discount NUMERIC DEFAULT 0                    -- ✓ константа
+created_at TIMESTAMP DEFAULT NOW()            -- ✓ функция
+id BIGINT DEFAULT NEXTVAL('seq_name')         -- ✓ функция
+```
+
+**Нельзя:**
+```sql
+total NUMERIC DEFAULT price * quantity        -- ❌ другие столбцы
+full_name TEXT DEFAULT first_name || ' ' || last_name  -- ❌ другие столбцы
+```
+
+Для вычисляемых столбцов используй **GENERATED COLUMN** (PostgreSQL 12+).
+
+---
+
+## КАК ИСПОЛЬЗОВАТЬ DEFAULT ПРИ INSERT
+
+### Способ 1: НЕ указывать столбец
+
+```sql
+-- Столбец discount имеет DEFAULT 0
+INSERT INTO person_discounts (person_id, pizzeria_id) 
+VALUES (1, 5);
+-- discount = 0 (автоматически)
+```
+
+Если столбец **НЕ упомянут** в списке, используется DEFAULT.
+
+---
+
+### Способ 2: Явно указать DEFAULT
+
+```sql
+INSERT INTO person_discounts (person_id, pizzeria_id, discount) 
+VALUES (1, 5, DEFAULT);
+--              ↑
+-- Ключевое слово DEFAULT
+```
+
+Явно говоришь: "используй DEFAULT значение".
+
+---
+
+### Способ 3: Через DEFAULT VALUES
+
+```sql
+-- Все столбцы получают DEFAULT значения
+INSERT INTO example DEFAULT VALUES;
+```
+
+Вставляет строку, где **ВСЕ** столбцы заполнены DEFAULT значениями.
+
+---
+
+## РАЗНИЦА: DEFAULT vs NULL
+
+### NULL — это "пусто", "не знаю"
+
+```sql
+CREATE TABLE users (
+    id BIGINT,
+    name TEXT
+);
+
+INSERT INTO users (id) VALUES (1);
+-- name = NULL (не указали, DEFAULT нет → NULL)
+```
+
+**NULL** означает "значение отсутствует".
+
+---
+
+### DEFAULT — это "подставь значение автоматически"
+
+```sql
+CREATE TABLE users (
+    id BIGINT,
+    name TEXT DEFAULT 'Неизвестно'
+);
+
+INSERT INTO users (id) VALUES (1);
+-- name = 'Неизвестно' (DEFAULT сработал)
+```
+
+**DEFAULT** означает "если не указал — вставь вот это".
+
+---
+
+### Можно комбинировать
+
+```sql
+CREATE TABLE users (
+    id BIGINT,
+    name TEXT DEFAULT 'Неизвестно',
+    email TEXT  -- нет DEFAULT → будет NULL
+);
+
+INSERT INTO users (id) VALUES (1);
+
+-- Результат:
+id | name        | email
+---|-------------|-------
+1  | Неизвестно  | NULL
+   ↑             ↑
+   DEFAULT       NULL (нет DEFAULT)
+```
+
+---
+
+## ПРИМЕР С РАЗНЫМИ DEFAULT
+
+```sql
+CREATE TABLE orders (
+    id BIGSERIAL PRIMARY KEY,                      -- DEFAULT NEXTVAL(...)
+    customer_id BIGINT,
+    total NUMERIC DEFAULT 0,                       -- DEFAULT 0
+    status TEXT DEFAULT 'pending',                 -- DEFAULT 'pending'
+    created_at TIMESTAMP DEFAULT NOW(),            -- DEFAULT NOW()
+    is_paid BOOLEAN DEFAULT false,                 -- DEFAULT false
+    notes TEXT                                     -- нет DEFAULT (NULL)
+);
+
+-- Вставка с минимальными данными
+INSERT INTO orders (customer_id, total) 
+VALUES (123, 500);
+
+-- Результат:
+id | customer_id | total | status   | created_at           | is_paid | notes
+---|-------------|-------|----------|----------------------|---------|-------
+1  | 123         | 500   | pending  | 2026-03-15 14:30:00  | false   | NULL
+↑                          ↑          ↑                       ↑         ↑
+AUTO                     DEFAULT    DEFAULT                DEFAULT   NULL
+```
+
+---
+
+## УДАЛЕНИЕ DEFAULT
+
+```sql
+ALTER TABLE table_name 
+    ALTER COLUMN column_name DROP DEFAULT;
+```
+
+**Пример:**
+
+```sql
+-- Было: discount DEFAULT 0
+ALTER TABLE person_discounts 
+    ALTER COLUMN discount DROP DEFAULT;
+-- Теперь: discount без DEFAULT (будет NULL при INSERT без значения)
+```
+
+---
+
+## ИЗМЕНЕНИЕ DEFAULT
+
+```sql
+-- Было: status DEFAULT 'active'
+ALTER TABLE users 
+    ALTER COLUMN status SET DEFAULT 'pending';
+-- Теперь: status DEFAULT 'pending'
+```
+
+⚠️ **ВАЖНО:** Изменение DEFAULT **НЕ ВЛИЯЕТ** на существующие строки! Только на новые INSERT.
+
+**Пример:**
+
+```sql
+-- Таблица с данными
+id | status
+---|--------
+1  | active
+2  | active
+
+-- Меняем DEFAULT
+ALTER TABLE users ALTER COLUMN status SET DEFAULT 'pending';
+
+-- Существующие строки НЕ ИЗМЕНИЛИСЬ:
+id | status
+---|--------
+1  | active  ← не изменился
+2  | active  ← не изменился
+
+-- Новая вставка
+INSERT INTO users (id) VALUES (3);
+
+-- Результат:
+id | status
+---|--------
+1  | active
+2  | active
+3  | pending ← новый DEFAULT сработал
+```
+
+---
+
+## ПРАКТИЧЕСКИЕ ПРИМЕРЫ
+
+### Пример 1: Автоматическая дата создания
+
+```sql
+CREATE TABLE articles (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT,
+    content TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO articles (title, content) 
+VALUES ('Заголовок', 'Текст статьи');
+
+-- created_at и updated_at заполнятся автоматически текущим временем
+```
+
+---
+
+### Пример 2: Статус по умолчанию
+
+```sql
+CREATE TABLE tasks (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT,
+    status TEXT DEFAULT 'todo'  -- новые задачи по умолчанию "todo"
+);
+
+INSERT INTO tasks (title) VALUES ('Купить молоко');
+INSERT INTO tasks (title) VALUES ('Позвонить врачу');
+
+-- Все задачи автоматически получают status='todo'
+```
+
+---
+
+### Пример 3: Счетчик по умолчанию
+
+```sql
+CREATE TABLE products (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT,
+    views INTEGER DEFAULT 0  -- счетчик просмотров начинается с 0
+);
+
+INSERT INTO products (name) VALUES ('Товар А');
+-- views = 0 автоматически
+
+UPDATE products SET views = views + 1 WHERE id = 1;
+-- views = 1
+```
+
+---
+
+### Пример 4: Логический флаг
+
+```sql
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT,
+    is_verified BOOLEAN DEFAULT false,  -- новые пользователи не подтверждены
+    is_active BOOLEAN DEFAULT true      -- но активны
+);
+
+INSERT INTO users (email) VALUES ('user@example.com');
+
+-- Результат:
+id | email             | is_verified | is_active
+---|-------------------|-------------|----------
+1  | user@example.com  | false       | true
+```
+
+---
+
+### Пример 5: Автогенерация номера
+
+```sql
+CREATE SEQUENCE seq_invoice START 1000;
+
+CREATE TABLE invoices (
+    id BIGSERIAL PRIMARY KEY,
+    invoice_number TEXT DEFAULT 'INV-' || NEXTVAL('seq_invoice'),
+    amount NUMERIC
+);
+
+INSERT INTO invoices (amount) VALUES (500);
+-- invoice_number = 'INV-1000'
+
+INSERT INTO invoices (amount) VALUES (1500);
+-- invoice_number = 'INV-1001'
+```
+
+---
+
+## DEFAULT vs NOT NULL vs CHECK
+
+```sql
+CREATE TABLE example (
+    -- Только DEFAULT
+    status TEXT DEFAULT 'active',
+    -- Можно вставить NULL явно
+    
+    -- DEFAULT + NOT NULL
+    country TEXT DEFAULT 'Россия' NOT NULL,
+    -- Нельзя вставить NULL (даже явно)
+    
+    -- DEFAULT + CHECK
+    discount NUMERIC DEFAULT 0 CHECK (discount BETWEEN 0 AND 100),
+    -- Должно быть от 0 до 100
+    
+    -- Все вместе
+    age INTEGER DEFAULT 18 NOT NULL CHECK (age >= 18)
+    -- По умолчанию 18, нельзя NULL, должно быть >= 18
+);
+```
+
+---
+
+## ПОСМОТРЕТЬ DEFAULT ЗНАЧЕНИЯ
+
+### Через psql:
+
+```sql
+\d person_discounts
+```
+
+Результат:
+```
+     Column      |  Type   | Default
+-----------------|---------|-------------------
+ id              | bigint  | nextval('seq_...')
+ person_id       | bigint  |
+ pizzeria_id     | bigint  |
+ discount        | numeric | 0
+```
+
+---
+
+### Через SQL:
+
+```sql
+SELECT 
+    column_name, 
+    column_default
+FROM information_schema.columns
+WHERE table_name = 'person_discounts';
+```
+
+Результат:
+```
+column_name   | column_default
+--------------|---------------------------
+id            | nextval('seq_person_discounts'::regclass)
+person_id     | NULL
+pizzeria_id   | NULL
+discount      | 0
+```
+
+---
+
+## ОСОБЕННОСТИ DEFAULT
+
+### 1. DEFAULT вычисляется при INSERT
+
+```sql
+CREATE TABLE example (
+    id BIGSERIAL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Вставка 1 в 10:00
+INSERT INTO example DEFAULT VALUES;
+-- created_at = 2026-03-15 10:00:00
+
+-- Вставка 2 в 10:05
+INSERT INTO example DEFAULT VALUES;
+-- created_at = 2026-03-15 10:05:00
+
+-- NOW() вызывается КАЖДЫЙ РАЗ при INSERT!
+```
+
+---
+
+### 2. DEFAULT НЕ работает при UPDATE
+
+```sql
+CREATE TABLE example (
+    status TEXT DEFAULT 'active'
+);
+
+INSERT INTO example DEFAULT VALUES;
+-- status = 'active'
+
+UPDATE example SET status = NULL;
+-- status = NULL (DEFAULT НЕ сработал!)
+
+-- DEFAULT работает только при INSERT, не при UPDATE
+```
+
+---
+
+### 3. DEFAULT NULL vs отсутствие DEFAULT
+
+```sql
+-- Вариант 1: Явный DEFAULT NULL
+CREATE TABLE t1 (col TEXT DEFAULT NULL);
+
+-- Вариант 2: Без DEFAULT
+CREATE TABLE t2 (col TEXT);
+
+-- Оба ведут себя ОДИНАКОВО при INSERT без значения
+INSERT INTO t1 DEFAULT VALUES;  -- col = NULL
+INSERT INTO t2 (id) VALUES (1); -- col = NULL (если есть другой столбец id)
+```
+
+Разница только в **метаданных** (явно указан DEFAULT или нет).
+
+---
+
+## КОРОТКИЙ ОТВЕТ
+
+**DEFAULT** — это **значение по умолчанию** для столбца.
+
+### Что делает:
+- Автоматически подставляется при INSERT, если значение **НЕ указано**
+- Можно указать **константу**, **функцию** или **NULL**
+
+### Синтаксис:
+
+**При создании таблицы:**
+```sql
+CREATE TABLE t (col TYPE DEFAULT значение);
+```
+
+**Для существующей таблицы:**
+```sql
+ALTER TABLE t ALTER COLUMN col SET DEFAULT значение;
+```
+
+**Удалить:**
+```sql
+ALTER TABLE t ALTER COLUMN col DROP DEFAULT;
+```
+
+### Примеры:
+
+```sql
+-- Число
+price NUMERIC DEFAULT 0
+
+-- Строка
+status TEXT DEFAULT 'active'
+
+-- Логическое
+is_active BOOLEAN DEFAULT true
+
+-- Функция
+created_at TIMESTAMP DEFAULT NOW()
+
+-- Последовательность
+id BIGINT DEFAULT NEXTVAL('seq_name')
+```
+
+### Аналогия:
+**DEFAULT = заранее заполненное поле в анкете**
+- Можешь оставить (не указывать при INSERT)
+- Можешь изменить (указать свое значение)
+
+### В задании:
+```sql
+ALTER TABLE person_discounts ALTER COLUMN discount SET DEFAULT 0;
+```
+
+Теперь:
+```sql
+INSERT INTO person_discounts (person_id, pizzeria_id) VALUES (1, 5);
+-- discount = 0 автоматически (из DEFAULT)
+```
+
+Понятно теперь?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## ОБЪЯСНЯЮ ЗАДАНИЕ ПРОСТЫМИ СЛОВАМИ
+
+### Представь ситуацию:
+
+У тебя есть **тетрадь** (таблица `person_discounts`), где ты записываешь скидки.
+
+В тетради уже есть **5 записей** с номерами:
+
+```
+№ | Клиент | Скидка
+--|--------|-------
+1 | Вася   | 10%
+2 | Петя   | 20%
+3 | Коля   | 15%
+4 | Маша   | 25%
+5 | Дима   | 30%
+```
+
+Тебе надоело **ВРУЧНУЮ** придумывать номера для каждой новой записи.
+
+### Задание говорит:
+
+**"Купи автомат-нумератор (SEQUENCE), который будет АВТОМАТИЧЕСКИ давать номера новым записям"**
+
+---
+
+## РАЗБОР СТРОКИ ПО СТРОКЕ
+
+### Строка 1: Покупаем нумератор
+
+```sql
+CREATE SEQUENCE seq_person_discounts START 1;
+```
+
+**ЧТО ПРОИСХОДИТ:**
+
+Ты покупаешь **автомат-нумератор** (как в очереди в поликлинике).
+
+```
+┌──────────────────┐
+│  НУМЕРАТОР       │
+│                  │
+│  Текущий номер:  │
+│       001        │
+│                  │
+│  [ВЗЯТЬ БИЛЕТ]   │
+└──────────────────┘
+```
+
+Автомат начинает с номера **1**.
+
+---
+
+### Строка 2: Привязываем нумератор к тетради
+
+```sql
+ALTER TABLE person_discounts 
+    ALTER COLUMN id SET DEFAULT NEXTVAL('seq_person_discounts');
+```
+
+**ЧТО ПРОИСХОДИТ:**
+
+Ты говоришь: **"Каждый раз, когда я добавляю новую запись в тетрадь БЕЗ номера, автоматически нажми кнопку на нумераторе и вставь этот номер!"**
+
+### Разберем по частям:
+
+**ALTER TABLE person_discounts** = "Меняю правила для тетради person_discounts"
+
+**ALTER COLUMN id** = "Конкретно для колонки 'номер' (id)"
+
+**SET DEFAULT** = "Устанавливаю значение ПО УМОЛЧАНИЮ" (что вставлять автоматически, если не указано)
+
+**NEXTVAL('seq_person_discounts')** = "Нажми кнопку на нумераторе и возьми следующий номер"
+
+### АНАЛОГИЯ:
+
+```
+БЫЛО (без DEFAULT):
+┌────────────────────────────────┐
+│ Новая запись:                  │
+│ № [____] ← нужно написать ВРУЧНУЮ
+│ Клиент: [Света]                │
+│ Скидка: [20%]                  │
+└────────────────────────────────┘
+
+СТАЛО (с DEFAULT NEXTVAL):
+┌────────────────────────────────┐
+│ Новая запись:                  │
+│ № [AUTO] ← АВТОМАТИЧЕСКИ из нумератора!
+│ Клиент: [Света]                │
+│ Скидка: [20%]                  │
+└────────────────────────────────┘
+```
+
+---
+
+## ЗАЧЕМ НУЖЕН NEXTVAL?
+
+**NEXTVAL** = "дай мне СЛЕДУЮЩИЙ номер из нумератора"
+
+### БЕЗ NEXTVAL (вручную):
+
+```sql
+INSERT INTO person_discounts (id, person_id, pizzeria_id, discount)
+VALUES (6, 10, 5, 15);
+     ↑
+   Придумал сам: 6
+
+INSERT INTO person_discounts (id, person_id, pizzeria_id, discount)
+VALUES (7, 11, 3, 20);
+     ↑
+   Опять вручную: 7
+```
+
+Каждый раз думаешь: "Какой следующий номер? 6? 7? 8?"
+
+**Можно ошибиться!** Забыл, что 6 уже есть → вставил 6 снова → **ОШИБКА!**
+
+---
+
+### С NEXTVAL (автоматически):
+
+```sql
+INSERT INTO person_discounts (person_id, pizzeria_id, discount)
+VALUES (10, 5, 15);
+-- id = 6 АВТОМАТИЧЕСКИ (нумератор выдал)
+
+INSERT INTO person_discounts (person_id, pizzeria_id, discount)
+VALUES (11, 3, 20);
+-- id = 7 АВТОМАТИЧЕСКИ (нумератор выдал)
+```
+
+**НЕ НУЖНО** думать про номера! Нумератор сам выдает: 6, 7, 8, 9...
+
+---
+
+## ЗАЧЕМ SETVAL?
+
+### Проблема:
+
+Нумератор **новый** — он начинает с **1**.
+
+Но в тетради **УЖЕ ЕСТЬ** записи с номерами 1, 2, 3, 4, 5!
+
+```sql
+CREATE SEQUENCE seq_person_discounts START 1;
+-- Нумератор: текущий номер = 1
+```
+
+Что будет, если вставить новую запись?
+
+```sql
+INSERT INTO person_discounts (person_id, pizzeria_id, discount)
+VALUES (10, 5, 15);
+-- Нумератор выдаст номер 1
+-- Попытка вставить id=1
+
+❌ ОШИБКА! id=1 уже существует в тетради!
+```
+
+### Решение: SETVAL
+
+```sql
+SELECT SETVAL(
+    'seq_person_discounts', 
+    (SELECT COUNT(*) + 1 FROM person_discounts)
+);
+```
+
+**ЧТО ПРОИСХОДИТ:**
+
+Ты **перематываешь нумератор** на правильный номер:
+
+1. Считаешь записи в тетради: COUNT(*) = 5
+2. Прибавляешь 1: 5 + 1 = 6
+3. Устанавливаешь нумератор на 6
+
+```
+БЫЛО:
+┌──────────────────┐
+│  НУМЕРАТОР       │
+│  Текущий номер:  │
+│       001        │  ← Начинает с 1 (конфликт!)
+└──────────────────┘
+
+ПОСЛЕ SETVAL:
+┌──────────────────┐
+│  НУМЕРАТОР       │
+│  Текущий номер:  │
+│       006        │  ← Установили на 6 (следующий свободный)
+└──────────────────┘
+```
+
+Теперь следующая запись получит номер **6** → нет конфликта!
+
+---
+
+## ПОРЯДОК ВЫПОЛНЕНИЯ СКРИПТА
+
+### ШАГ 1: Удаляем старый нумератор (если есть)
+
+```sql
+DROP SEQUENCE IF EXISTS seq_person_discounts CASCADE;
+```
+
+**ЧТО ПРОИСХОДИТ:**
+- Выбрасываем старый нумератор (если был)
+- CASCADE — отключаем его от всех тетрадей, где он использовался
+
+**АНАЛОГИЯ:** Убираешь старый сломанный нумератор из очереди.
+
+---
+
+### ШАГ 2: Покупаем новый нумератор
+
+```sql
+CREATE SEQUENCE seq_person_discounts START 1;
+```
+
+**ЧТО ПРОИСХОДИТ:**
+- Создаем новый нумератор
+- Он начинает с номера **1**
+
+**СОСТОЯНИЕ НУМЕРАТОРА:**
+```
+Текущий номер: 1
+Следующий выдаст: 1
+```
+
+**АНАЛОГИЯ:** Купил новый нумератор билетов, он на заводе настроен на 001.
+
+---
+
+### ШАГ 3: Привязываем нумератор к столбцу id
+
+```sql
+ALTER TABLE person_discounts 
+    ALTER COLUMN id SET DEFAULT NEXTVAL('seq_person_discounts');
+```
+
+**ЧТО ПРОИСХОДИТ:**
+- Говорим столбцу `id`: "Если при INSERT тебя не указали, возьми номер из нумератора"
+- Теперь `id` **СВЯЗАН** с нумератором
+
+**АНАЛОГИЯ:** Повесил табличку: "При выдаче нового бланка автоматически проставлять номер из автомата А-123"
+
+**СОСТОЯНИЕ:**
+```
+Таблица person_discounts:
+- Столбец id теперь имеет DEFAULT = "взять из seq_person_discounts"
+```
+
+---
+
+### ШАГ 4: Перематываем нумератор на правильный номер
+
+```sql
+SELECT SETVAL(
+    'seq_person_discounts', 
+    (SELECT COUNT(*) + 1 FROM person_discounts)
+);
+```
+
+**ЧТО ПРОИСХОДИТ:**
+
+**Шаг 4.1:** Подзапрос считает строки
+```sql
+SELECT COUNT(*) + 1 FROM person_discounts
+-- Допустим, в таблице 5 записей
+-- COUNT(*) = 5
+-- 5 + 1 = 6
+-- Возвращает: 6
+```
+
+**Шаг 4.2:** SETVAL устанавливает нумератор на 6
+```sql
+SETVAL('seq_person_discounts', 6)
+```
+
+**СОСТОЯНИЕ НУМЕРАТОРА ПОСЛЕ:**
+```
+Текущий номер: 6
+Следующий выдаст: 7
+```
+
+**АНАЛОГИЯ:** Перемотал нумератор с 001 на 006, потому что билеты 1-5 уже выданы вручную.
+
+---
+
+### ШАГ 5: Проверка
+
+```sql
+SELECT 
+    COUNT(*) = 1 AS check1,
+    MAX("start_value") = 1 AS check2,
+    MAX("last_value") > 5 AS check3
+FROM pg_sequences
+WHERE sequencename = 'seq_person_discounts';
+```
+
+**ЧТО ПРОИСХОДИТ:**
+- Проверяем, что нумератор создан и настроен правильно
+
+**Проверка 1:** `COUNT(*) = 1` — нумератор существует (найден ровно 1)
+
+**Проверка 2:** `MAX("start_value") = 1` — начальное значение было 1 (из CREATE SEQUENCE START 1)
+
+**Проверка 3:** `MAX("last_value") > 5` — текущее значение больше 5 (значит SETVAL отработал, учел 5 существующих записей)
+
+---
+
+## ОБЩАЯ СХЕМА
+
+```
+┌─────────────────────────────────────────┐
+│ ШАГ 1: Удаляем старый нумератор         │
+│ DROP SEQUENCE IF EXISTS ...             │
+└─────────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────────┐
+│ ШАГ 2: Создаем новый нумератор          │
+│ CREATE SEQUENCE ... START 1             │
+│ Состояние: текущий номер = 1            │
+└─────────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────────┐
+│ ШАГ 3: Привязываем к столбцу id         │
+│ ALTER TABLE ... SET DEFAULT NEXTVAL()   │
+│ Теперь: INSERT без id → автономер       │
+└─────────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────────┐
+│ ШАГ 4: Перематываем на правильный номер │
+│ SETVAL(..., COUNT(*) + 1)               │
+│ Было: 1 → Стало: 6                      │
+│ (учитываем 5 существующих записей)      │
+└─────────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────────┐
+│ ШАГ 5: Проверяем                        │
+│ SELECT ... FROM pg_sequences            │
+│ ✓ Нумератор создан                      │
+│ ✓ Начинается с 1                        │
+│ ✓ Текущее значение > 5                  │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## ЧТО ПРОИСХОДИТ ПОСЛЕ ВЫПОЛНЕНИЯ СКРИПТА
+
+### ТЕПЕРЬ можно вставлять БЕЗ указания id:
+
+```sql
+INSERT INTO person_discounts (person_id, pizzeria_id, discount)
+VALUES (10, 5, 15);
+```
+
+**ЧТО ПРОИСХОДИТ ВНУТРИ:**
+
+1. PostgreSQL видит: "id не указан"
+2. Смотрит DEFAULT для id: `NEXTVAL('seq_person_discounts')`
+3. Вызывает функцию NEXTVAL
+4. NEXTVAL обращается к нумератору: "Дай следующий номер"
+5. Нумератор: "Текущий 6, выдаю 7, запоминаю новый текущий 7"
+6. NEXTVAL возвращает 7
+7. PostgreSQL вставляет: id=7
+
+**РЕЗУЛЬТАТ:**
+
+```
+№ | Клиент | Скидка
+--|--------|-------
+1 | Вася   | 10%
+2 | Петя   | 20%
+3 | Коля   | 15%
+4 | Маша   | 25%
+5 | Дима   | 30%
+7 | id=10  | 15%  ← АВТОМАТИЧЕСКИ получил id=7
+```
+
+---
+
+## ФИНАЛЬНОЕ ОБЪЯСНЕНИЕ ALTER TABLE ... SET DEFAULT NEXTVAL
+
+```sql
+ALTER TABLE person_discounts 
+    ALTER COLUMN id SET DEFAULT NEXTVAL('seq_person_discounts');
+```
+
+### ПРОСТЫМИ СЛОВАМИ:
+
+**"Для таблицы person_discounts, для столбца id, установи правило: если при вставке новой строки id НЕ указан, автоматически возьми следующий номер из нумератора seq_person_discounts"**
+
+### ЕЩЕ ПРОЩЕ:
+
+**"id теперь заполняется АВТОМАТИЧЕСКИ из нумератора"**
+
+### АНАЛОГИЯ:
+
+Представь **форму заявления**:
+
+**БЫЛО:**
+```
+Заявление №: [____]  ← нужно вписать вручную
+```
+
+**СТАЛО:**
+```
+Заявление №: [АВТО]  ← автоматически из нумератора
+```
+
+Ты больше НЕ ЗАПОЛНЯЕШЬ номер вручную — он проставляется автоматически.
+
+---
+
+## КОРОТКИЙ ОТВЕТ
+
+### Задание:
+Создать автоматический нумератор (SEQUENCE) для столбца id, чтобы при вставке новых записей **НЕ НУЖНО** было вручную придумывать номера.
+
+### Что делает строка:
+```sql
+ALTER TABLE person_discounts 
+    ALTER COLUMN id SET DEFAULT NEXTVAL('seq_person_discounts');
+```
+
+**Связывает столбец id с автоматом-нумератором:**
+- При INSERT **БЕЗ** указания id → PostgreSQL **автоматически** берет следующий номер из нумератора
+- Ты больше НЕ ПИШЕШЬ id вручную
+
+### Зачем NEXTVAL:
+**NEXTVAL** = "дай следующий номер"
+
+Это **ФУНКЦИЯ**, которая:
+1. Обращается к нумератору
+2. Спрашивает: "Какой следующий?"
+3. Нумератор выдает номер и увеличивает счетчик
+4. Возвращает этот номер
+
+### Порядок выполнения:
+1. Удаляем старый нумератор
+2. Создаем новый (начинается с 1)
+3. **Связываем** нумератор со столбцом id (SET DEFAULT NEXTVAL)
+4. Перематываем нумератор на правильный номер (чтобы не было конфликтов)
+5. Проверяем, что все работает
+
+### Результат:
+```sql
+-- БЫЛО (вручную):
+INSERT INTO person_discounts (id, person_id, ...) VALUES (6, 10, ...);
+                              ↑ придумал сам
+
+-- СТАЛО (автоматически):
+INSERT INTO person_discounts (person_id, ...) VALUES (10, ...);
+-- id=6 автоматически из нумератора
+```
+
+Понятно теперь?
+
+
+
+
+
+
